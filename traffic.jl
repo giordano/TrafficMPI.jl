@@ -1,23 +1,13 @@
 using Random
 
-function initroad(road, density, rng=Random.default_rng())
-    ncar = 0
-    n = length(road)
-    for i in 1:n
-        if rand(rng) < density
-            road[i] = 1
-        else
-            road[i] = 0
-        end
-        ncar += road[i]
-    end
-    return ncar
-end
+initroad!(road, density, rng=Random.default_rng()) = 
+    road .= Int.(rand.(rng) .< density)
 
-function updateroad(newroad, oldroad)
+function updateroad!(newroad, oldroad)
     n = length(oldroad) - 2
     nmove = 0
-    for i in 1:n
+    for i in 2:n
+
         if oldroad[i] == 1
             if oldroad[i + 1] == 1
                 newroad[i] = 1
@@ -26,16 +16,19 @@ function updateroad(newroad, oldroad)
                 nmove += 1
             end
         else
-            newroad[i] = ifelse(oldroad[i - 1] == 1, 1, 0)
+            newroad[i] = ifelse(isone(oldroad[i - 1]), 1, 0)
         end
+
+        # newroad[i] = ifelse(iszero(oldroad[i]), oldroad[i-1], oldroad[i+1])
+        # nmove = nmove + Int(newroad[i] != oldroad[i])
+
     end
     return nmove
 end
 
 function updatebcs!(road)
-    n = length(road) - 2
-    road[1]     = road[n]
-    road[n + 1] = road[1]
+    road[begin] = road[end - 1]
+    road[end]   = road[begin + 1]
 end
 
 function main()
@@ -45,9 +38,9 @@ function main()
     maxiter = 1024000000 ÷ ncell
     printfreq = maxiter ÷ 10
 
-    tmproad = zeros(Int, ncell - 1)
-    newroad = zeros(Int, ncell + 1)
-    oldroad = zeros(Int, ncell + 1)
+    tmproad = zeros(Int32, ncell)
+    newroad = zeros(Int32, ncell + 2)
+    oldroad = zeros(Int32, ncell + 2)
 
     density = 0.52
 
@@ -57,13 +50,14 @@ function main()
 
     # Initialise road accordingly using random number generator
     println("Initialising ...")
-    ncars = initroad(tmproad, density, rng)
+    initroad!(tmproad, density, rng)
+    ncars = count(isone, tmproad)
     println("Actual Density of cars is $(ncars/ncell)")
-    @views oldroad[2:ncell] = tmproad
+    oldroad[2:(end - 1)] = tmproad
     tstart = time()
     @inbounds for iter in 1:maxiter
         updatebcs!(oldroad)
-        nmove = updateroad(newroad, oldroad)
+        nmove = updateroad!(newroad, oldroad)
         # Copy new to old array
         for i in 2:ncell
             oldroad[i] = newroad[i]
