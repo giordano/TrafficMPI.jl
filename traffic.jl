@@ -1,12 +1,12 @@
 using Random
 
 initroad!(road, density, rng=Random.default_rng()) = 
-    road .= Int.(rand.(rng) .< density)
+    road .= Int.(rand.(rng, Float32) .< density)
 
 function updateroad!(newroad, oldroad)
     n = length(oldroad) - 2
     nmove = 0
-    for i in 2:n
+    @inbounds for i in 2:n
 
         if oldroad[i] == 1
             if oldroad[i + 1] == 1
