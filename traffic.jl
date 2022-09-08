@@ -16,7 +16,7 @@ function updateroad!(newroad, oldroad)
                 nmove += 1
             end
         else
-            newroad[i] = ifelse(isone(oldroad[i - 1]), 1, 0)
+            newroad[i] = Int(isone(oldroad[i - 1]))
         end
 
         # newroad[i] = ifelse(iszero(oldroad[i]), oldroad[i-1], oldroad[i+1])
