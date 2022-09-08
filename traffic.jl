@@ -53,6 +53,7 @@ function main()
     initroad!(tmproad, density, rng)
     ncars = count(isone, tmproad)
     println("Actual Density of cars is $(ncars/ncell)")
+    println()
     oldroad[2:(end - 1)] = tmproad
     tstart = time()
     @inbounds for iter in 1:maxiter
