@@ -14,7 +14,7 @@ function main_mpi()
     seedval = 5743
     rng = Random.seed!(seedval)
     ncell = 10240000
-    maxiter = 1024000000 ÷ ncell
+    maxiter = trunc(Int, 1.024e10 / ncell)
     printfreq = maxiter ÷ 10
 
     nlocal = ncell ÷ size
@@ -55,7 +55,7 @@ function main_mpi()
 
     end
 
-    MPI.Scatter!(bigroad, @view(oldroad[2:nlocal]), comm; root=0)
+    MPI.Scatter!(bigroad, @view(oldroad[2:nlocal]), 0, comm)
 
     if iszero(rank)
         println("... done")
@@ -86,10 +86,12 @@ function main_mpi()
 
     for iter in 1:maxiter
 
-        MPI.Sendrecv!(@view(oldroad[nlocal:nlocal]), @view(oldroad[1:1]), comm;
-                      source=rankdown, dest=rankup)
-        MPI.Sendrecv!(@view(oldroad[2:2]), @view(oldroad[(nlocal+2):(nlocal + 2)]), comm;
-                      source=rankup, dest=rankdown)
+        MPI.Sendrecv!(@view(oldroad[nlocal:nlocal]), rankup, 0,
+                      @view(oldroad[1:1]), rankdown, 0,
+                      comm)
+        MPI.Sendrecv!(@view(oldroad[2:2]), rankdown, 0,
+                      @view(oldroad[(nlocal+2):(nlocal + 2)]), rankup, 0,
+                      comm)
 
         nmovelocal = updateroad!(newroad, oldroad)
 
