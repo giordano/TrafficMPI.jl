@@ -9,6 +9,12 @@ function kernel!(newroad, oldroad, sbuf, rbuf, nlocal, rankup, rankdown, comm)
     MPI.Sendrecv!(@view(oldroad[2:2]), rankdown, 0,
                   @view(oldroad[(nlocal+2):(nlocal + 2)]), rankup, 0,
                   comm)
+    # # With MPI.jl v0.20 you can use instead
+    # MPI.Sendrecv!(@view(oldroad[nlocal]), @view(oldroad[1]), comm;
+    #               source=rankdown, dest=rankup)
+    # MPI.Sendrecv!(@view(oldroad[2]), @view(oldroad[(nlocal+2)]), comm;
+    #               source=rankup, dest=rankdown)
+
 
     sbuf[begin] = updateroad!(newroad, oldroad)
     MPI.Allreduce!(sbuf, rbuf, +, comm)
@@ -75,6 +81,8 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000)
     end
 
     MPI.Scatter!(bigroad, @view(oldroad[2:nlocal]), 0, comm)
+    # # Wtih MPI.jl v0.20 you can use instead
+    # MPI.Scatter!(bigroad, @view(oldroad[2:nlocal]), comm; root=0)
 
     if iszero(rank)
         println("... done")
