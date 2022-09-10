@@ -4,9 +4,8 @@ initroad!(road, density, rng=Random.default_rng()) =
     road .= Int32.(rand.(rng, Float32) .< density)
 
 function updateroad!(newroad, oldroad)
-    n = length(oldroad) - 1
     nmove = Int32(0)
-    for i in 2:n
+    for i in eachindex(oldroad, newroad)[(begin + 1):(end - 1)]
 
         if isone(oldroad[i])
             if isone(oldroad[i + 1])
@@ -31,11 +30,11 @@ function updatebcs!(road)
     road[end]   = road[begin + 1]
 end
 
-function kernel!(newroad, oldroad, ncell)
+function kernel!(newroad, oldroad)
     updatebcs!(oldroad)
     nmove = updateroad!(newroad, oldroad)
     # Copy new to old array
-    for i in 2:ncell
+    for i in eachindex(oldroad, newroad)[(begin + 1):(end - 1)]
         oldroad[i] = newroad[i]
     end
     return nmove
@@ -65,7 +64,7 @@ function main(; ncell::Int=10240000, maxiter::Int=100)
     oldroad[2:(end - 1)] = tmproad
     tstart = time()
     @inbounds for iter in 1:maxiter
-        nmove = kernel!(newroad, oldroad, ncell)
+        nmove = kernel!(newroad, oldroad)
         if iszero(iter % printfreq)
             println("At iteration $(iter) average velocity is $(nmove/ncars)")
         end
