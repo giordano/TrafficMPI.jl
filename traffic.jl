@@ -34,8 +34,8 @@ function kernel!(newroad, oldroad)
     updatebcs!(oldroad)
     nmove = updateroad!(newroad, oldroad)
     # Copy new to old array
-    for i in eachindex(oldroad, newroad)[(begin + 1):(end - 1)]
-        oldroad[i] = newroad[i]
+    for idx in eachindex(oldroad, newroad)[(begin + 1):(end - 1)]
+        @inbounds oldroad[idx] = newroad[idx]
     end
     return nmove
 end

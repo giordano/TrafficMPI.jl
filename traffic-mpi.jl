@@ -2,30 +2,33 @@ using MPI
 
 include(joinpath(@__DIR__, "traffic.jl"))
 
-function kernel!(newroad, oldroad, sbuf, rbuf, nlocal, rankup, rankdown, comm)
-    MPI.Sendrecv!(@view(oldroad[nlocal:nlocal]), rankup, 0,
-                  @view(oldroad[1:1]), rankdown, 0,
+function updatebcs_mpi!(road, rankup, rankdown, comm)
+    MPI.Sendrecv!(@view(road[end - 1]), rankup, 1,
+                  @view(road[begin]), rankdown, 1,
                   comm)
-    MPI.Sendrecv!(@view(oldroad[2:2]), rankdown, 0,
-                  @view(oldroad[(nlocal+2):(nlocal + 2)]), rankup, 0,
+    MPI.Sendrecv!(@view(road[begin + 1]), rankdown, 1,
+                  @view(road[end]), rankup, 1,
                   comm)
     # # With MPI.jl v0.20 you can use instead
-    # MPI.Sendrecv!(@view(oldroad[nlocal]), @view(oldroad[1]), comm;
+    # MPI.Sendrecv!(@view(road[end - 1]), @view(road[begin]), comm;
     #               source=rankdown, dest=rankup)
-    # MPI.Sendrecv!(@view(oldroad[2]), @view(oldroad[(nlocal+2)]), comm;
+    # MPI.Sendrecv!(@view(road[begin + 1]), @view(road[end]), comm;
     #               source=rankup, dest=rankdown)
+end
 
-
-    sbuf[begin] = updateroad!(newroad, oldroad)
+function updateroad_mpi!(newroad, oldroad, sbuf, rbuf, comm)
+    sbuf[] = updateroad!(newroad, oldroad)
     MPI.Allreduce!(sbuf, rbuf, +, comm)
-    nmove = rbuf[begin]
+    return rbuf[]
+end
 
+function kernel!(newroad, oldroad, rankup, rankdown, sbuf, rbuf, comm)
+    updatebcs_mpi!(oldroad, rankup, rankdown, comm)
+    nmove = updateroad_mpi!(newroad, oldroad, sbuf, rbuf, comm)
     # Copy new to old array
-    # @views oldroad[2:(end - 1)] .= newroad[2:(end - 1)]
-    for idx in 2:(nlocal + 1)
+    for idx in eachindex(oldroad, newroad)[(begin + 1):(end - 1)]
         @inbounds oldroad[idx] = newroad[idx]
     end
-
     return nmove
 end
 
@@ -57,8 +60,8 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000)
     newroad  = zeros(Int32, nlocal + 2)
     oldroad  = zeros(Int32, nlocal + 2)
 
-    sbuf = zeros(Int32, 1)
-    rbuf = zeros(Int32, 1)
+    sbuf = Ref{Int32}(0)
+    rbuf = Ref{Int32}(0)
 
     density = 0.52
 
@@ -80,9 +83,9 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000)
 
     end
 
-    MPI.Scatter!(bigroad, @view(oldroad[2:nlocal]), 0, comm)
+    MPI.Scatter!(bigroad, @view(oldroad[(begin + 1):(end - 1)]), 0, comm)
     # # Wtih MPI.jl v0.20 you can use instead
-    # MPI.Scatter!(bigroad, @view(oldroad[2:nlocal]), comm; root=0)
+    # MPI.Scatter!(bigroad, @view(oldroad[(begin + 1):(end - 1)]), comm; root=0)
 
     if iszero(rank)
         println("... done")
@@ -91,18 +94,8 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000)
 
     # Compute neighbours
 
-    rankup   = rank + 1
-    rankdown = rank - 1
-
-    # Wrap-around for cyclic boundary conditions, i.e. a roundabout
-
-    if rankup == size
-        rankup = 0
-    end
-
-    if rankdown == -1
-        rankdown = size - 1
-    end
+    rankup   = (rank + 1) % size
+    rankdown = (rank + size - 1) % size
 
     nmove = 0
     nmovelocal = 0
@@ -111,12 +104,10 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000)
     tstart = MPI.Wtime()
 
     for iter in 1:maxiter
-        nmove = kernel!(newroad, oldroad, sbuf, rbuf, nlocal, rankup, rankdown, comm)
+        nmove = kernel!(newroad, oldroad, rankup, rankdown, sbuf, rbuf, comm)
 
-        if iszero(iter % printfreq)
-            if iszero(rank)
-                println("At iteration $(iter) average velocity is $(nmove / ncars)")
-            end
+        if iszero(iter % printfreq) && iszero(rank)
+            println("At iteration $(iter) average velocity is $(nmove / ncars)")
         end
     end
 
