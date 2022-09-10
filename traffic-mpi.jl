@@ -2,7 +2,28 @@ using MPI
 
 include(joinpath(@__DIR__, "traffic.jl"))
 
-function main_mpi()
+function kernel!(newroad, oldroad, sbuf, rbuf, nlocal, rankup, rankdown, comm)
+    MPI.Sendrecv!(@view(oldroad[nlocal:nlocal]), rankup, 0,
+                  @view(oldroad[1:1]), rankdown, 0,
+                  comm)
+    MPI.Sendrecv!(@view(oldroad[2:2]), rankdown, 0,
+                  @view(oldroad[(nlocal+2):(nlocal + 2)]), rankup, 0,
+                  comm)
+
+    sbuf[begin] = updateroad!(newroad, oldroad)
+    MPI.Allreduce!(sbuf, rbuf, +, comm)
+    nmove = rbuf[begin]
+
+    # Copy new to old array
+    # @views oldroad[2:(end - 1)] .= newroad[2:(end - 1)]
+    for idx in 2:(nlocal + 1)
+        @inbounds oldroad[idx] = newroad[idx]
+    end
+
+    return nmove
+end
+
+function main_mpi(; ncell::Int=10240000, maxiter::Int=1000)
     MPI.Init()
 
     comm = MPI.COMM_WORLD
@@ -13,8 +34,6 @@ function main_mpi()
     # Simulation parameters
     seedval = 5743
     rng = Random.seed!(seedval)
-    ncell = 10240000
-    maxiter = trunc(Int, 1.024e10 / ncell)
     printfreq = maxiter ÷ 10
 
     nlocal = ncell ÷ size
@@ -81,26 +100,10 @@ function main_mpi()
     nmovelocal = 0
 
     MPI.Barrier(comm)
-
     tstart = MPI.Wtime()
 
     for iter in 1:maxiter
-
-        MPI.Sendrecv!(@view(oldroad[nlocal:nlocal]), rankup, 0,
-                      @view(oldroad[1:1]), rankdown, 0,
-                      comm)
-        MPI.Sendrecv!(@view(oldroad[2:2]), rankdown, 0,
-                      @view(oldroad[(nlocal+2):(nlocal + 2)]), rankup, 0,
-                      comm)
-
-        nmovelocal = updateroad!(newroad, oldroad)
-
-        sbuf[begin] = nmovelocal
-        MPI.Allreduce!(sbuf, rbuf, +, comm)
-        nmove = rbuf[begin]
-
-        # Copy new to old array
-        @views oldroad[2:(end - 1)] = newroad[2:(end - 1)]
+        nmove = kernel!(newroad, oldroad, sbuf, rbuf, nlocal, rankup, rankdown, comm)
 
         if iszero(iter % printfreq)
             if iszero(rank)
@@ -110,7 +113,6 @@ function main_mpi()
     end
 
     MPI.Barrier(comm)
-
     tstop = MPI.Wtime()
 
     if iszero(rank)

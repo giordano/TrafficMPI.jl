@@ -1,22 +1,22 @@
 using Random
 
 initroad!(road, density, rng=Random.default_rng()) = 
-    road .= Int.(rand.(rng, Float32) .< density)
+    road .= Int32.(rand.(rng, Float32) .< density)
 
 function updateroad!(newroad, oldroad)
-    n = length(oldroad) - 2
-    nmove = 0
-    @inbounds for i in 2:n
+    n = length(oldroad) - 1
+    nmove = Int32(0)
+    for i in 2:n
 
-        if oldroad[i] == 1
-            if oldroad[i + 1] == 1
-                newroad[i] = 1
+        if isone(oldroad[i])
+            if isone(oldroad[i + 1])
+                @inbounds newroad[i] = Int32(1)
             else
-                newroad[i] = 0
-                nmove += 1
+                @inbounds newroad[i] = Int32(0)
+                nmove += Int32(1)
             end
         else
-            newroad[i] = Int(isone(oldroad[i - 1]))
+            @inbounds newroad[i] = Int32(isone(oldroad[i - 1]))
         end
 
         # newroad[i] = ifelse(iszero(oldroad[i]), oldroad[i-1], oldroad[i+1])
@@ -31,11 +31,19 @@ function updatebcs!(road)
     road[end]   = road[begin + 1]
 end
 
-function main()
+function kernel!(newroad, oldroad, ncell)
+    updatebcs!(oldroad)
+    nmove = updateroad!(newroad, oldroad)
+    # Copy new to old array
+    for i in 2:ncell
+        oldroad[i] = newroad[i]
+    end
+    return nmove
+end
+
+function main(; ncell::Int=10240000, maxiter::Int=100)
     seedval = 5743
     rng = Random.seed!(seedval)
-    ncell = 10240000
-    maxiter = 1024000000 ÷ ncell
     printfreq = maxiter ÷ 10
 
     tmproad = zeros(Int32, ncell)
@@ -57,12 +65,7 @@ function main()
     oldroad[2:(end - 1)] = tmproad
     tstart = time()
     @inbounds for iter in 1:maxiter
-        updatebcs!(oldroad)
-        nmove = updateroad!(newroad, oldroad)
-        # Copy new to old array
-        for i in 2:ncell
-            oldroad[i] = newroad[i]
-        end
+        nmove = kernel!(newroad, oldroad, ncell)
         if iszero(iter % printfreq)
             println("At iteration $(iter) average velocity is $(nmove/ncars)")
         end
