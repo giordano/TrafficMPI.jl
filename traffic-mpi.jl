@@ -32,13 +32,18 @@ function kernel!(newroad, oldroad, rankup, rankdown, sbuf, rbuf, comm)
     return nmove
 end
 
-function main_mpi(; ncell::Int=10240000, maxiter::Int=1000)
+function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false)
     MPI.Init()
 
     comm = MPI.COMM_WORLD
 
     size = MPI.Comm_size(comm)
     rank = MPI.Comm_rank(comm)
+
+    # If doing weak scaling, increase number of cells by size of MPI processes
+    if weak
+        ncell *= size
+    end
 
     # Simulation parameters
     seedval = 5743
