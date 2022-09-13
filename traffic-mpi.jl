@@ -56,7 +56,10 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000)
         exit(1)
     end
 
-    bigroad  = zeros(Int32, ncell)
+    # Create full `bigroad` vector only on rank 0, otherwise make it empty as
+    # it's unused.  Also, it'll be initialised later, don't waste time setting
+    # it to zeros.
+    bigroad  = Vector{Int32}(undef, iszero(rank) ? ncell : 0)
     newroad  = zeros(Int32, nlocal + 2)
     oldroad  = zeros(Int32, nlocal + 2)
 
