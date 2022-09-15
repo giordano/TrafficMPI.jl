@@ -32,7 +32,7 @@ function kernel!(newroad, oldroad, rankup, rankdown, sbuf, rbuf, comm)
     return nmove
 end
 
-function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false)
+function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false, verbose::Bool=true)
     MPI.Init()
 
     comm = MPI.COMM_WORLD
@@ -48,9 +48,9 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false)
     # Simulation parameters
     seedval = 5743
     rng = Random.seed!(seedval)
-    printfreq = maxiter ÷ 10
+    printfreq = div(maxiter, 10)
 
-    nlocal = ncell ÷ size
+    nlocal = div(ncell, size)
 
     # Check consistency
 
@@ -74,28 +74,31 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false)
     density = 0.52
 
     if iszero(rank)
-        println("Length of road is $(ncell)")
-        println("Number of iterations is $(maxiter)")
-        println("Target density of cars is $(density)")
-        println("Running on $(size) process(es)")
+        if verbose
+            println("Length of road is $(ncell)")
+            println("Number of iterations is $(maxiter)")
+            println("Target density of cars is $(density)")
+            println("Running on $(size) process(es)")
 
-        # Initialise road accordingly using random number generator
-        println("Initialising ...")
+            # Initialise road accordingly using random number generator
+            println("Initialising ...")
+        end
 
         initroad!(bigroad, density, rng)
         ncars = count(isone, bigroad)
 
-        println("Actual Density of cars is $(ncars / ncell)")
-        println()
-        println("Scattering data ...")
-
+        if verbose
+            println("Actual Density of cars is $(ncars / ncell)")
+            println()
+            println("Scattering data ...")
+        end
     end
 
     MPI.Scatter!(bigroad, @view(oldroad[(begin + 1):(end - 1)]), 0, comm)
     # # Wtih MPI.jl v0.20 you can use instead
     # MPI.Scatter!(bigroad, @view(oldroad[(begin + 1):(end - 1)]), comm; root=0)
 
-    if iszero(rank)
+    if verbose && iszero(rank)
         println("... done")
         println()
     end
@@ -114,7 +117,7 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false)
     for iter in 1:maxiter
         nmove = kernel!(newroad, oldroad, rankup, rankdown, sbuf, rbuf, comm)
 
-        if iszero(iter % printfreq) && iszero(rank)
+        if verbose && iszero(iter % printfreq) && iszero(rank)
             println("At iteration $(iter) average velocity is $(nmove / ncars)")
         end
     end
@@ -122,7 +125,7 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false)
     MPI.Barrier(comm)
     tstop = MPI.Wtime()
 
-    if iszero(rank)
+    if verbose && iszero(rank)
         println()
         println("Finished")
         println()
