@@ -61,10 +61,6 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false, ve
         exit(1)
     end
 
-    # Create full `bigroad` vector only on rank 0, otherwise make it empty as
-    # it's unused.  Also, it'll be initialised later, don't waste time setting
-    # it to zeros.
-    bigroad  = Vector{Int32}(undef, iszero(rank) ? ncell : 0)
     newroad  = zeros(Int32, nlocal + 2)
     oldroad  = zeros(Int32, nlocal + 2)
 
@@ -73,33 +69,35 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false, ve
 
     density = 0.52
 
-    if iszero(rank)
-        if verbose
-            println("Length of road is $(ncell)")
-            println("Number of iterations is $(maxiter)")
-            println("Target density of cars is $(density)")
-            println("Running on $(size) process(es)")
+    if verbose && iszero(rank)
+        println("Length of road is $(ncell)")
+        println("Number of iterations is $(maxiter)")
+        println("Target density of cars is $(density)")
+        println("Running on $(size) process(es)")
+        println("Initialising and scattering data ...")
+    end
 
-            # Initialise road accordingly using random number generator
-            println("Initialising ...")
+    tmproad  = Vector{Int32}(undef, iszero(rank) ? nlocal : 0)
+    ncars = 0
+    tag = 1
+    for this_rank in 0:(size - 1)
+        # Use non-blocking `Isend`/`Irecv` to allow sending the message to the
+        # same rank.
+        if iszero(rank)
+            initroad!(tmproad, density, rng)
+            ncars += count(isone, tmproad)
+            MPI.Isend(tmproad, this_rank, tag, comm)
         end
-
-        initroad!(bigroad, density, rng)
-        ncars = count(isone, bigroad)
-
-        if verbose
-            println("Actual Density of cars is $(ncars / ncell)")
-            println()
-            println("Scattering data ...")
+        MPI.Barrier(comm)
+        if this_rank == rank
+            MPI.Irecv!(@views(oldroad[(begin + 1):(end - 1)]), 0, tag, comm)
         end
     end
 
-    MPI.Scatter!(bigroad, @view(oldroad[(begin + 1):(end - 1)]), 0, comm)
-    # # Wtih MPI.jl v0.20 you can use instead
-    # MPI.Scatter!(bigroad, @view(oldroad[(begin + 1):(end - 1)]), comm; root=0)
-
     if verbose && iszero(rank)
         println("... done")
+        println()
+        println("Actual Density of cars is $(ncars / ncell)")
         println()
     end
 
