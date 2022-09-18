@@ -77,13 +77,10 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false, ve
         println("Initialising ...")
     end
 
-    tmproad  = Vector{Int32}(undef, nlocal)
     for _ in 0:rank
-        initroad!(tmproad, density, rng)
+        initroad!(@view(oldroad[(begin + 1):(end - 1)]), density, rng)
     end
-    oldroad[(begin + 1):(end - 1)] .= tmproad
-
-    ncars = MPI.Reduce(count(isone, tmproad), +, 0, comm)
+    ncars = MPI.Reduce(count(isone, @view(oldroad[(begin + 1):(end - 1)])), +, 0, comm)
 
     if verbose && iszero(rank)
         println("... done")
