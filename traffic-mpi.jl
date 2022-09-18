@@ -61,10 +61,6 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false, ve
         exit(1)
     end
 
-    # Create full `bigroad` vector only on rank 0, otherwise make it empty as
-    # it's unused.  Also, it'll be initialised later, don't waste time setting
-    # it to zeros.
-    bigroad  = Vector{Int32}(undef, iszero(rank) ? ncell : 0)
     newroad  = zeros(Int32, nlocal + 2)
     oldroad  = zeros(Int32, nlocal + 2)
 
@@ -73,33 +69,26 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false, ve
 
     density = 0.52
 
-    if iszero(rank)
-        if verbose
-            println("Length of road is $(ncell)")
-            println("Number of iterations is $(maxiter)")
-            println("Target density of cars is $(density)")
-            println("Running on $(size) process(es)")
-
-            # Initialise road accordingly using random number generator
-            println("Initialising ...")
-        end
-
-        initroad!(bigroad, density, rng)
-        ncars = count(isone, bigroad)
-
-        if verbose
-            println("Actual Density of cars is $(ncars / ncell)")
-            println()
-            println("Scattering data ...")
-        end
+    if verbose && iszero(rank)
+        println("Length of road is $(ncell)")
+        println("Number of iterations is $(maxiter)")
+        println("Target density of cars is $(density)")
+        println("Running on $(size) process(es)")
+        println("Initialising ...")
     end
 
-    MPI.Scatter!(bigroad, @view(oldroad[(begin + 1):(end - 1)]), 0, comm)
-    # # Wtih MPI.jl v0.20 you can use instead
-    # MPI.Scatter!(bigroad, @view(oldroad[(begin + 1):(end - 1)]), comm; root=0)
+    tmproad  = Vector{Int32}(undef, nlocal)
+    for _ in 0:rank
+        initroad!(tmproad, density, rng)
+    end
+    oldroad[(begin + 1):(end - 1)] .= tmproad
+
+    ncars = MPI.Reduce(count(isone, tmproad), +, 0, comm)
 
     if verbose && iszero(rank)
         println("... done")
+        println()
+        println("Actual Density of cars is $(ncars / ncell)")
         println()
     end
 
