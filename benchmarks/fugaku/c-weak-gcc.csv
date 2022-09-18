@@ -1,4 +1,4 @@
-number of ranks,number of nodes,number of roads,number of iterations,time (seconds),performance (MCops)
+number of ranks,number of nodes,number of roads,number of iterations,time (seconds),performance (MCOPs)
    1, 1,   5120000,1000,93.551730,54.729079
    2, 1,  10240000,1000,94.181331,108.726431
    4, 1,  20480000,1000,94.886060,215.837816
