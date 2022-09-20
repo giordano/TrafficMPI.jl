@@ -17,8 +17,8 @@ plot_scaling!(p, df, label, linecolor) =
 
 plot_weak_scaling!(p, df, label) =
     plot!(p,
-          df.var"number of ranks",
-          df.var"time (seconds)";
+          df.var"number of nodes",
+          df.var"time (seconds)"[1] ./ df.var"time (seconds)";
           label,
           linewidth=2,
           )
@@ -97,17 +97,33 @@ function scaling(system::String; kwargs...)
     _plot(system, true; kwargs...)
 end
 
-function weak_scaling(system::String; filter=Returns(true), legend=:bottomright)
+function weak_scaling(system::String; filter=Returns(true), legend=:bottomleft)
     julia = CSV.read(joinpath(@__DIR__, lowercase(system), "julia-weak.csv"), DataFrame; comment="#")
     filter_data!(julia, filter)
-    c_gcc = CSV.read(joinpath(@__DIR__, lowercase(system), "c-weak-gcc.csv"), DataFrame)
-    filter_data!(c_gcc, filter)
-    c_fujitsu = CSV.read(joinpath(@__DIR__, lowercase(system), "c-weak-fujitsu.csv"), DataFrame)
-    filter_data!(c_fujitsu, filter)
+    c_path = joinpath(@__DIR__, lowercase(system), "c-weak.csv")
+    if isfile(c_path)
+        c = CSV.read(c_path, DataFrame)
+        filter_data!(c_gcc, filter)
+    end
+    c_gcc_path = joinpath(@__DIR__, lowercase(system), "c-gcc-weak.csv")
+    if isfile(c_gcc_path)
+        c_gcc = CSV.read(c_gcc_path, DataFrame)
+        filter_data!(c_gcc, filter)
+    end
+    c_fujitsu_path = joinpath(@__DIR__, lowercase(system), "c-fujitsu-weak.csv")
+    if isfile(c_fujitsu_path)
+        c_fujitsu = CSV.read(c_fujitsu_path, DataFrame)
+        filter_data!(c_fujitsu, filter)
+    end
     python_path = joinpath(@__DIR__, lowercase(system), "python-weak.csv")
     if isfile(python_path)
         python = CSV.read(python_path, DataFrame)
         filter_data!(python, filter)
+    end
+    fortran_path = joinpath(@__DIR__, lowercase(system), "fortran-weak.csv")
+    if isfile(fortran_path)
+        fortran = CSV.read(fortran_path, DataFrame)
+        filter_data!(fortran, filter)
     end
     fortran_gcc_path = joinpath(@__DIR__, lowercase(system), "fortran-weak-gcc.csv")
     if isfile(fortran_gcc_path)
@@ -119,25 +135,35 @@ function weak_scaling(system::String; filter=Returns(true), legend=:bottomright)
         fortran_fujitsu = CSV.read(fortran_fujitsu_path, DataFrame)
         filter_data!(fortran_fujitsu, filter)
     end
-    ticks = julia.var"number of ranks"
+    ticks = julia.var"number of nodes"
 
     yticks = (2, 5, 10, 20, 50, 100)
     p = plot(;
              xticks=(ticks, ticks),
              xscale=:log10,
-             yticks=(yticks, yticks),
-             yscale=:log10,
-             ylims=(2, 100),
-             xlabel="Number of ranks",
-             ylabel="Runtime (seconds)",
+             # yticks=(yticks, yticks),
+             # yscale=:log10,
+             # ylims=(0, Inf),
+             xlabel="Number of nodes",
+             ylabel="Scaling efficiency",
              legend,
              title="Weak scaling of traffic simulation on $(system)",
              )
     plot_weak_scaling!(p, julia, "Julia")
-    plot_weak_scaling!(p, c_gcc, "C (GCC)")
-    plot_weak_scaling!(p, c_fujitsu, "C (Fujitsu)")
+    if isfile(c_path)
+        plot_weak_scaling!(p, c_gcc, "C")
+    end
+    if isfile(c_gcc_path)
+        plot_weak_scaling!(p, c_gcc, "C (GCC)")
+    end
+    if isfile(c_fujitsu_path)
+        plot_weak_scaling!(p, c_fujitsu, "C (Fujitsu)")
+    end
     if isfile(python_path)
         plot_weak_scaling!(p, python, "Python")
+    end
+    if isfile(fortran_path)
+        plot_weak_scaling!(p, fortran, "Fortran")
     end
     if isfile(fortran_gcc_path)
         plot_weak_scaling!(p, fortran_gcc, "Fortran (GCC)")
@@ -145,6 +171,7 @@ function weak_scaling(system::String; filter=Returns(true), legend=:bottomright)
     if isfile(fortran_fujitsu_path)
         plot_weak_scaling!(p, fortran_fujitsu, "Fortran (Fujitsu)")
     end
+    return p
 end
 
 #=
