@@ -118,4 +118,6 @@ function main_mpi(; ncell::Int=10240000, maxiter::Int=1000, weak::Bool=false, ve
         println("Time taken was $(tstop - tstart) seconds")
         println("Update rate was $(1.0e-6 * ncell * maxiter / (tstop-tstart)) MCOPs")
     end
+
+    return nothing
 end

@@ -77,4 +77,5 @@ function main(; ncell::Int=10240000, maxiter::Int=100)
     println("Time taken was $(tstop-tstart) seconds")
     println("Update rate was $(1.0e-6 * ncell * maxiter / (tstop-tstart)) MCOPs")
 
+    return nothing
 end
