@@ -21,6 +21,7 @@ plot_weak_scaling!(p, df, label) =
           df.var"time (seconds)"[1] ./ df.var"time (seconds)";
           label,
           linewidth=2,
+          marker=:auto,
           )
 
 function plot_performance!(p, df, label, linecolor1, linecolor2)
@@ -103,7 +104,7 @@ function weak_scaling(system::String; filter=Returns(true), legend=:bottomleft)
     c_path = joinpath(@__DIR__, lowercase(system), "c-weak.csv")
     if isfile(c_path)
         c = CSV.read(c_path, DataFrame)
-        filter_data!(c_gcc, filter)
+        filter_data!(c, filter)
     end
     c_gcc_path = joinpath(@__DIR__, lowercase(system), "c-gcc-weak.csv")
     if isfile(c_gcc_path)
@@ -151,7 +152,7 @@ function weak_scaling(system::String; filter=Returns(true), legend=:bottomleft)
              )
     plot_weak_scaling!(p, julia, "Julia")
     if isfile(c_path)
-        plot_weak_scaling!(p, c_gcc, "C")
+        plot_weak_scaling!(p, c, "C")
     end
     if isfile(c_gcc_path)
         plot_weak_scaling!(p, c_gcc, "C (GCC)")
