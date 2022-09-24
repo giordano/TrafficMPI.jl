@@ -24,6 +24,15 @@ plot_weak_scaling!(p, df, label) =
           marker=:auto,
           )
 
+plot_weak_overhead!(p, df, label) =
+    plot!(p,
+          df.var"number of nodes",
+          df.var"time (seconds)" .- df.var"time (seconds)"[1];
+          label,
+          linewidth=2,
+          marker=:auto,
+          )
+
 function plot_performance!(p, df, label, linecolor1, linecolor2)
     plot!(p,
           df.var"number of ranks",
@@ -98,7 +107,7 @@ function scaling(system::String; kwargs...)
     _plot(system, true; kwargs...)
 end
 
-function weak_scaling(system::String; filter=Returns(true), legend=:bottomleft)
+function weak_scaling(system::String; filter=Returns(true), overhead::Bool=false, legend=overhead ? :topleft : :bottomleft)
     julia = CSV.read(joinpath(@__DIR__, lowercase(system), "julia-weak.csv"), DataFrame; comment="#")
     filter_data!(julia, filter)
     c_path = joinpath(@__DIR__, lowercase(system), "c-weak.csv")
@@ -106,12 +115,12 @@ function weak_scaling(system::String; filter=Returns(true), legend=:bottomleft)
         c = CSV.read(c_path, DataFrame)
         filter_data!(c, filter)
     end
-    c_gcc_path = joinpath(@__DIR__, lowercase(system), "c-gcc-weak.csv")
+    c_gcc_path = joinpath(@__DIR__, lowercase(system), "c-weak-gcc.csv")
     if isfile(c_gcc_path)
         c_gcc = CSV.read(c_gcc_path, DataFrame)
         filter_data!(c_gcc, filter)
     end
-    c_fujitsu_path = joinpath(@__DIR__, lowercase(system), "c-fujitsu-weak.csv")
+    c_fujitsu_path = joinpath(@__DIR__, lowercase(system), "c-weak-fujitsu.csv")
     if isfile(c_fujitsu_path)
         c_fujitsu = CSV.read(c_fujitsu_path, DataFrame)
         filter_data!(c_fujitsu, filter)
@@ -138,6 +147,8 @@ function weak_scaling(system::String; filter=Returns(true), legend=:bottomleft)
     end
     ticks = julia.var"number of nodes"
 
+    plot_f! = overhead ? plot_weak_overhead! : plot_weak_scaling!
+
     yticks = (2, 5, 10, 20, 50, 100)
     p = plot(;
              xticks=(ticks, ticks),
@@ -146,31 +157,31 @@ function weak_scaling(system::String; filter=Returns(true), legend=:bottomleft)
              # yscale=:log10,
              # ylims=(0, Inf),
              xlabel="Number of nodes",
-             ylabel="Scaling efficiency",
+             ylabel=overhead ? "Overhead w.r.t. single node (seconds)" : "Scaling efficiency",
              legend,
              title="Weak scaling of traffic simulation on $(system)",
              )
-    plot_weak_scaling!(p, julia, "Julia")
+    plot_f!(p, julia, "Julia")
     if isfile(c_path)
-        plot_weak_scaling!(p, c, "C")
+        plot_f!(p, c, "C")
     end
     if isfile(c_gcc_path)
-        plot_weak_scaling!(p, c_gcc, "C (GCC)")
+        plot_f!(p, c_gcc, "C (GCC)")
     end
     if isfile(c_fujitsu_path)
-        plot_weak_scaling!(p, c_fujitsu, "C (Fujitsu)")
+        plot_f!(p, c_fujitsu, "C (Fujitsu)")
     end
     if isfile(python_path)
-        plot_weak_scaling!(p, python, "Python")
+        plot_f!(p, python, "Python")
     end
     if isfile(fortran_path)
-        plot_weak_scaling!(p, fortran, "Fortran")
+        plot_f!(p, fortran, "Fortran")
     end
     if isfile(fortran_gcc_path)
-        plot_weak_scaling!(p, fortran_gcc, "Fortran (GCC)")
+        plot_f!(p, fortran_gcc, "Fortran (GCC)")
     end
     if isfile(fortran_fujitsu_path)
-        plot_weak_scaling!(p, fortran_fujitsu, "Fortran (Fujitsu)")
+        plot_f!(p, fortran_fujitsu, "Fortran (Fujitsu)")
     end
     return p
 end
